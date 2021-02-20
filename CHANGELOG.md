@@ -3,6 +3,7 @@
 - Tests and CI using Github Actions to repo
 
 ## Changes
+- Fixed security vulnerabilities reported by `npm audit`
 - Updated google-spreadsheet depenedncy
 - Removed support for public published sheets due to deprecated authentication options 
 - Examples now use async await
