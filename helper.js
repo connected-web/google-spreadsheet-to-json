@@ -32,7 +32,7 @@ function handlePropertyName (cellValue, handleMode) {
 
   if (handleModeType === 'function') { return handleMode(cellValue) }
 
-  const propertyName = (cellValue || '').trim()
+  const propertyName = (cellValue + '').trim()
 
   if (handleMode === 'camel' || handleModeType === 'undefined') {
     return getWords(propertyName.toLowerCase()).map(function (word, index) {
@@ -103,8 +103,8 @@ function parseColIdentifier (col) {
   return col
 }
 
-function cellIsValid (cell) {
-  return !!cell && typeof cell.value === 'string' && cell.value !== ''
+function cellHasValue (cell) {
+  return cell && cell.value
 }
 
 // google spreadsheet cells into json
@@ -112,8 +112,8 @@ function cellsToJson (allCells, options) {
   // setting up some options, such as defining if the data is horizontal or vertical
   options = options || {}
 
-  const rowProp = options.vertical ? 'col' : 'row'
-  const colProp = options.vertical ? 'row' : 'col'
+  const rowProp = options.vertical ? 'columnIndex' : 'rowIndex'
+  const colProp = options.vertical ? 'rowIndex' : 'columnIndex'
   const isHashed = options.hash && !options.listOnly
   const includeHeaderAsValue = options.listOnly && options.includeHeader
   const headerStartNumber = options.headerStart ? parseColIdentifier(options.headerStart) : 0
@@ -128,9 +128,9 @@ function cellsToJson (allCells, options) {
   // organizing (and ordering) the cells into arrays
 
   const rows = []
-
-  allCells.forEach(function (cell) {
-    if (ignoredRows.indexOf(cell.row) !== -1 || ignoredCols.indexOf(cell.col) !== -1) { return }
+  const cellsWithValues = allCells.filter(cellHasValue)
+  cellsWithValues.forEach(function (cell) {
+    if (ignoredRows.indexOf(cell.rowIndex) !== -1 || ignoredCols.indexOf(cell.columnIndex) !== -1) { return }
 
     maxCol = Math.max(maxCol, cell[colProp])
 
@@ -181,7 +181,7 @@ function cellsToJson (allCells, options) {
 
         // the first header cell (from the bottom to top) must be from this column,
         // so we don't check to the left
-        const isCellValid = cellIsValid(headerCell)
+        const isCellValid = cellHasValue(headerCell)
         if (!foundFirstCell && isCellValid) {
           foundFirstCell = true
         } else if (foundFirstCell && !isCellValid) {
@@ -197,7 +197,7 @@ function cellsToJson (allCells, options) {
             const hasCellBelow = headerRows.filter(function (r, i) {
               return i === index - 1
             }).some(function (r) {
-              return cellIsValid(r.filter(function (cell) {
+              return cellHasValue(r.filter(function (cell) {
                 return cell[colProp] === headerCell[colProp]
               })[0])
             })
@@ -208,7 +208,7 @@ function cellsToJson (allCells, options) {
 
         return headerCell
       }).map(function (cell) {
-        const isCellValid = cellIsValid(cell)
+        const isCellValid = cellHasValue(cell)
         return isCellValid ? handlePropertyName(cell.value, options.propertyMode) : false
       }).filter(n => n).reverse()
 
@@ -299,7 +299,7 @@ async function getWorksheets (options) {
     spreadsheet = await setupSpreadsheet({ spreadsheetId, credentials })
     await spreadsheet.loadInfo()
   } catch (ex) {
-    console.error('Unable to setup spreadsheet:', ex.message, 'using options:', options)
+    console.error('Unable to setup spreadsheet:', ex.message, 'using options:', Object.keys(options || {}))
     throw ex
   }
 
@@ -330,26 +330,29 @@ async function spreadsheetToJson (options) {
     throw new Error('[google-spreadsheet-to-json] [helper.js] No worksheet found!')
   }
 
-  const worksheetsMappedToCells = selectedWorksheets.map(async (worksheet) => {
-    await worksheet.loadCells()
-    let i = 0
-    let j = 0
-    const cells = []
-    while (j < worksheet.rowCount) {
-      while (i < worksheet.columnCount) {
-        cells.push(worksheet.getCell(j, i))
-        i++
-      }
-      j++
-    }
-    return cells
+  const worksheetsMappedToCells = await Promise.all(selectedWorksheets.map(getAllCells))
+  const worksheetsMappedToJson = worksheetsMappedToCells.map(cells => {
+    return cellsToJson(cells, options)
   })
 
-  const worksheetsMappedToJson = worksheetsMappedToCells.map(worksheetCells => {
-    return cellsToJson(worksheetCells, options)
-  })
+  console.log('Woot', worksheetsMappedToJson)
 
   return expectMultipleWorksheets ? worksheetsMappedToJson : worksheetsMappedToJson[0]
+}
+
+async function getAllCells (worksheet) {
+  await worksheet.loadCells()
+  const cells = []
+  let j = 0
+  while (j < worksheet.rowCount) {
+    let i = 0
+    while (i < worksheet.columnCount) {
+      cells.push(worksheet.getCell(j, i))
+      i++
+    }
+    j++
+  }
+  return cells
 }
 
 module.exports = {
