@@ -18,8 +18,12 @@ describe('Film Spreadsheet to JSON using Private Auth Credentials', () => {
       spreadsheetId,
       credentials
     })
-    expect(json).to.deep.equal({
-      something: 'something'
-    })
+    expect(json).to.deep.equal([{
+      name: 'Forrest Gump',
+      year: 1994
+    }, {
+      name: 'Matrix',
+      year: 1999
+    }])
   }).timeout(longRunningTestTimeoutInMs)
 })

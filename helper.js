@@ -5,6 +5,7 @@ const { GoogleSpreadsheet } = require('google-spreadsheet')
 // constants used for converting column names into number/index
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'
 const ALPHABET_BASE = ALPHABET.length
+const NOT_FOUND = -1
 
 function capitalize (str) {
   return str.charAt(0).toUpperCase() + str.slice(1)
@@ -90,7 +91,7 @@ function parseColIdentifier (col) {
     return col.trim().replace(/[ .]/i, '').toLowerCase().split('').reverse().reduce(function (totalValue, letter, index) {
       const alphaIndex = ALPHABET.indexOf(letter)
 
-      if (alphaIndex === -1) { throw new Error('Column identifier format is invalid') }
+      if (alphaIndex === NOT_FOUND) { throw new Error('Column identifier format is invalid') }
 
       const value = alphaIndex + 1
 
@@ -130,11 +131,11 @@ function cellsToJson (allCells, options) {
   const rows = []
   const cellsWithValues = allCells.filter(cellHasValue)
   cellsWithValues.forEach(function (cell) {
-    if (ignoredRows.indexOf(cell.rowIndex) !== -1 || ignoredCols.indexOf(cell.columnIndex) !== -1) { return }
+    if (ignoredRows.indexOf(cell.rowIndex) !== NOT_FOUND || ignoredCols.indexOf(cell.columnIndex) !== NOT_FOUND) { return }
 
     maxCol = Math.max(maxCol, cell[colProp])
 
-    const rowIndex = cell[rowProp] - 1
+    const rowIndex = cell[rowProp]
     if (typeof rows[rowIndex] === 'undefined') { rows[rowIndex] = [] }
     rows[rowIndex].push(cell)
   })
@@ -171,7 +172,7 @@ function cellsToJson (allCells, options) {
       return index >= firstRowIndex && index <= headerEndRowIndex
     }).reverse()
 
-    for (let colNumber = 1; colNumber <= maxCol; colNumber++) {
+    for (let colNumber = 0; colNumber <= maxCol; colNumber++) {
       let foundFirstCell = false
 
       const propertyMap = headerRows.map(function (row, index) {
@@ -319,7 +320,7 @@ async function spreadsheetToJson (options) {
   const identifiers = normalizePossibleIntList(options.worksheet, [0])
 
   let selectedWorksheets = worksheets.filter((worksheet, index) => {
-    return identifiers.indexOf(index) !== -1 || identifiers.indexOf(worksheet.title) !== -1
+    return identifiers.indexOf(index) !== NOT_FOUND || identifiers.indexOf(worksheet.title) !== NOT_FOUND
   })
 
   if (!expectMultipleWorksheets) {
@@ -334,8 +335,6 @@ async function spreadsheetToJson (options) {
   const worksheetsMappedToJson = worksheetsMappedToCells.map(cells => {
     return cellsToJson(cells, options)
   })
-
-  console.log('Woot', worksheetsMappedToJson)
 
   return expectMultipleWorksheets ? worksheetsMappedToJson : worksheetsMappedToJson[0]
 }
